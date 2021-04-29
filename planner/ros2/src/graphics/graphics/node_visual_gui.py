@@ -80,20 +80,29 @@ class VisualsNode(Thread, Node):
         # ---------------------------------------------------------------------
         # Subscribers
 
-        self.msg_planner = planner_msg()
         # TODO: Implement the path planner status subscriber,
         # topic name: "/path_planner/msg"
         # message type: planner_msg
         # callback:cb_path_planner
         # add here your solution
-
+        self.msg_planner = self.create_subscription(
+            msg_type=planner_msg,
+            topic="/path_planner/msg",
+            callback=self.cb_path_planner,
+            qos_profile=10,
+        )
         # ------------------------------------------
         # TODO: Implement the Kiwibot status subscriber,
         # topic name: "/kiwibot/status"
         # message type: kiwibot_msg
         # callback:cb_kiwibot_status
         # add here your solution
-        self.msg_kiwibot = kiwibot_msg()
+        self.msg_kiwibot = self.create_subscription(
+            msg_type=kiwibot_msg,
+            topic="/kiwibot/status",
+            callback=self.cb_kiwibot_status,
+            qos_profile=10,
+        )
 
         # ------------------------------------------
 
@@ -120,7 +129,7 @@ class VisualsNode(Thread, Node):
         self.run_event.set()
         self.start()
 
-    def cb_path_planner(self, msg: planner_msg) -> None:
+    def cb_path_planner(self, msg: planner_msg):
         """
         Callback to update path planner state information in visuals
         Args:
@@ -155,7 +164,7 @@ class VisualsNode(Thread, Node):
                 msg_type="ERROR",
             )
 
-    def cb_kiwibot_status(self, msg: kiwibot_msg) -> None:
+    def cb_kiwibot_status(self, msg: kiwibot_msg):
         """
             Callback to update kiwibot state information in visuals
         Args:
