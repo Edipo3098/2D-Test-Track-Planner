@@ -16,7 +16,7 @@ import os
 
 from threading import Thread, Event
 
-# from std_msgs.msg import Int32
+from std_msgs.msg import Int32
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -27,6 +27,7 @@ from rclpy.node import Node
 
 from utils.python_utils import printlog
 from utils.python_utils import print_list_text
+from utils.python_utils import overlay_image
 
 from usr_msgs.msg import Planner as planner_msg
 from usr_msgs.msg import Kiwibot as kiwibot_msg
@@ -119,13 +120,13 @@ class VisualsNode(Thread, Node):
 
         # Uncomment
         # Publisher for activating the rear cam streaming
-        # self.msg_path_number = Int32()
-        # self.pub_start_routine = self.create_publisher(
-        #     msg_type=Int32,
-        #     topic="/graphics/start_routine",
-        #     qos_profile=1,
-        #     callback_group=self.callback_group,
-        # )
+        self.msg_path_number = Int32()
+        self.pub_start_routine = self.create_publisher(
+            msg_type=Int32,
+            topic="/graphics/start_routine",
+            qos_profile=1,
+            callback_group=self.callback_group,
+        )
 
         # ---------------------------------------------------------------------
         self.damon = True
@@ -326,6 +327,7 @@ class VisualsNode(Thread, Node):
     def draw_robot(
         self, l_img: np.ndarray, s_img: np.ndarray, pos: tuple, transparency=1.0
     ) -> np.ndarray:
+
         """
             Draws robot in maps image
         Args:
@@ -339,8 +341,12 @@ class VisualsNode(Thread, Node):
 
         # -----------------------------------------
         # Insert you solution here
-
-        return l_img  # remove this line when implement your solution
+        height = s_img.shape[0]
+        width = s_img.shape[1]
+        posNew = (pos[0] - height, pos[1] - width)
+        return overlay_image(
+            l_img, s_img, pos, transparency, src_center=True
+        )  # remove this line when implement your solution
 
         # -----------------------------------------
 
@@ -359,10 +365,10 @@ class VisualsNode(Thread, Node):
         win_img, robot_coord = self.crop_map(coord=coord)
 
         # Draws robot in maps image
-        # if coord[0] and coord[1]:
-        # win_img = self.draw_robot(
-        #     l_img=win_img, s_img=self._kiwibot_img, pos=robot_coord
-        # )
+        if coord[0] and coord[1]:
+            win_img = self.draw_robot(
+                l_img=win_img, s_img=self._kiwibot_img, pos=robot_coord
+            )
 
         # Draw descriptions
         str_list = [
@@ -422,8 +428,24 @@ class VisualsNode(Thread, Node):
         """
 
         # -----------------------------------------
-        # Insert you solution here
-        pass
+        # Insert you solution here\
+        win_half_width = int(self._win_size[0] * 0.5)
+        win_half_height = int(self._win_size[1] * 0.5)
+        # print((self._win_size[0]))  - 640
+        # print((self._win_size[1])) - 480
+
+        for i in range(0, len(land_marks)):
+
+            print((land_marks[i]))
+            coord = (land_marks[i].y, land_marks[1].x)
+            print(coord)
+            cv2.circle(
+                img=self._win_background,
+                center=tuple(coord),
+                radius=10,
+                color=(0, 0, 255),
+                thickness=2,
+            )
 
         # -----------------------------------------
 
@@ -469,7 +491,7 @@ class VisualsNode(Thread, Node):
                         msg=f"Code is broken here",
                         msg_type="WARN",
                     )
-                    continue  # remove this line
+                    # continue  # remove this line
                     printlog(
                         msg=f"Routine {chr(key)} was sent to path planner node",
                         msg_type="INFO",
