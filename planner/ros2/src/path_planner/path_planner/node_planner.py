@@ -13,6 +13,7 @@ import yaml
 import csv
 import sys
 import os
+import math
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -322,7 +323,7 @@ class PlannerNode(Node):
                         pt=self._FORWARE_ACELERATION_FC,
                         n=self._FORWARE_CRTL_POINTS,
                     )
-
+                    
                     # Move the robot to the next landmark
                     self.robot_move_req.waypoints = [
                         Waypoint(
@@ -467,21 +468,54 @@ class PlannerNode(Node):
                 }
         """
 
+        print("Distance cycle")
+        print(src)
+        print(dst)
         way_points = []
 
-        # ---------------------------------------------------------------------
-        # TODO: Trapezoidal speed profile
-        # Add your solution here, remeber that every element in the list is a dictionary
-        # where every element in has the next structure and data type:
-        # "idx": [int](index of the waypoint),
-        # "pt": [tuple][int](x and y axis positions in the image space),
-        # "t": [float](time for angle a),
-        # "dt": [float](sept of time for angle a, is constant element)
-        # Do not forget and respect the keys names
+        total_norm = np.sqrt((src[0] - dst[0]) ** 2 + (src[1] - dst[1]) ** 2)
+        print("Distancia")
+        print(total_norm)
+        Constant_Seed = total_norm/time
+        print("Speed")
+        print(Constant_Seed)
+        a = Constant_Seed/time
+        times = np.linspace(0,time,num=int(n))
 
-        # ---------------------------------------------------------------------
+
+        print("Position in each axis")
+        
+        ptp0 = (dst[0] - src[0], dst[1] - src[1])
+        print(ptp0)
+
+        t2 = times[1]
+        pt2 = ((Constant_Seed * t2 / total_norm) * ptp0[0] + src[0],
+                (Constant_Seed * t2 / total_norm) * ptp0[1] + src[1],
+            )
+        print(pt2)
+
+        idx = 0
+        for t in times:
+            
+            pt = ((Constant_Seed * t / total_norm) * ptp0[0] + src[0],
+                (Constant_Seed * t / total_norm) * ptp0[1] + src[1],
+            )
+
+            way_points.append({"idx": idx, "pt": pt, "t": t, "dt": time /n})
+            
+            idx += 1
+        print(way_points[0])
+        print(way_points[-1])
+        print("End of calculation")
+        
+        
+
 
         return way_points
+
+
+
+
 
     def get_profile_turn(self, dst: float, time: float, pt=0.3, n=30) -> list:
         """
@@ -493,18 +527,55 @@ class PlannerNode(Node):
             n: `int` control points to discrite the trajectory
         Returns:
             turn_points: `dict` coordinates and times of turn with trapezoidal profile
-                every element in the list is  dictionary with the keys:
-                {
-                    "idx": [int](index of the waypoint),
-                    "a": [float](yaw angle of the robot),
-                    "t": [float](time for angle a),
-                    "dt": [float](sept of time for angle a, is constant element)
-                }
         """
 
         turn_points = []
         if dst == 0.0:
             return turn_points
+
+        tau = time * pt  # Time for the first segment [s]
+        Vk = dst / (time * (1 - pt))  # Max speed [ms-1]
+        a = Vk / tau  # [ms-2]
+        Ptau = 0.5 * a * (tau ** 2)
+        Pttau = Vk * (time - 2 * tau) + Ptau
+
+        # ---------------------------------------------------------------------
+        # Accelerated segment
+        k = n * pt  # Number of points
+        tseg1 = 2 * Ptau / Vk  # Time for Accelerated segment [s]
+        a1 = Vk / tseg1  # Acceleration for Accelerated segment [m2/s]
+        times = np.linspace(0, tseg1, num=int(k))
+
+        idx = 1
+        for t in times:
+            ang = 0.5 * a1 * (t ** 2)
+            turn_points.append({"idx": idx, "a": ang, "t": t, "dt": tseg1 / k})
+            idx += 1
+
+        # ---------------------------------------------------------------------
+        # Constant segment
+        kc = n - 2 * k
+        ptaupt = Pttau - Ptau
+        tseg2 = ptaupt / Vk
+        times = np.linspace(0, tseg2, num=int(kc))
+        for t in times:
+            ang = (Vk * t) + Ptau
+            turn_points.append({"idx": idx, "a": ang, "t": t, "dt": tseg2 / kc})
+            idx += 1
+
+        # ---------------------------------------------------------------------
+        # Decelerated segment
+        ptpdst = dst - Pttau
+        tseg3 = 2.0 * ptpdst / Vk
+        a3 = -Vk / tseg3
+        times = np.linspace(0, tseg3, num=int(k))
+        for t in times:
+            ang = (0.5 * a3 * (t ** 2) + (Vk * t)) + Pttau
+            turn_points.append({"idx": idx, "a": ang, "t": t, "dt": tseg3 / k})
+            idx += 1
+        turn_points[-1]["a"] = float(int(turn_points[-1]["a"]))
+
+        return turn_points
 
         # ---------------------------------------------------------------------
         # TODO: Trapezoidal turn profile
