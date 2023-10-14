@@ -27,9 +27,12 @@ from rclpy.node import Node
 
 from utils.python_utils import printlog
 from utils.python_utils import print_list_text
+from utils.python_utils import overlay_image
 
 from usr_msgs.msg import Planner as planner_msg
 from usr_msgs.msg import Kiwibot as kiwibot_msg
+
+from std_msgs.msg import Int32
 
 # =============================================================================
 def setProcessName(name: str) -> None:
@@ -81,19 +84,22 @@ class VisualsNode(Thread, Node):
         # Subscribers
 
         self.msg_planner = planner_msg()
-        # TODO: Implement the path planner status subscriber,
-        # topic name: "/path_planner/msg"
-        # message type: planner_msg
-        # callback:cb_path_planner
-        # add here your solution
+        self.sub_planner = self.create_subscription(
+            msg_type=planner_msg,
+            topic="/path_planner/msg",
+            callback=self.cb_path_planner,
+            qos_profile=qos_profile_sensor_data,
+            callback_group=self.callback_group,
+        )
 
-        # ------------------------------------------
-        # TODO: Implement the Kiwibot status subscriber,
-        # topic name: "/kiwibot/status"
-        # message type: kiwibot_msg
-        # callback:cb_kiwibot_status
-        # add here your solution
         self.msg_kiwibot = kiwibot_msg()
+        self.sub_kiwibot_stat = self.create_subscription(
+            msg_type=kiwibot_msg,
+            topic="/kiwibot/status",
+            callback=self.cb_kiwibot_status,
+            qos_profile=qos_profile_sensor_data,
+            callback_group=self.callback_group,
+        )
 
         # ------------------------------------------
 
@@ -106,13 +112,13 @@ class VisualsNode(Thread, Node):
 
         # Uncomment
         # Publisher for activating the rear cam streaming
-        # self.msg_path_number = Int32()
-        # self.pub_start_routine = self.create_publisher(
-        #     msg_type=Int32,
-        #     topic="/graphics/start_routine",
-        #     qos_profile=1,
-        #     callback_group=self.callback_group,
-        # )
+        self.msg_path_number = Int32()
+        self.pub_start_routine = self.create_publisher(
+            msg_type=Int32,
+            topic="/graphics/start_routine",
+            qos_profile=1,
+            callback_group=self.callback_group,
+        )
 
         # ---------------------------------------------------------------------
         self.damon = True
@@ -313,6 +319,8 @@ class VisualsNode(Thread, Node):
     def draw_robot(
         self, l_img: np.ndarray, s_img: np.ndarray, pos: tuple, transparency=1.0
     ) -> np.ndarray:
+        
+        l_imagen = overlay_image(l_img,s_img,pos,transparency ,True)
         """
             Draws robot in maps image
         Args:
@@ -327,7 +335,7 @@ class VisualsNode(Thread, Node):
         # -----------------------------------------
         # Insert you solution here
 
-        return l_img  # remove this line when implement your solution
+        return l_imagen  # remove this line when implement your solution
 
         # -----------------------------------------
 
@@ -346,10 +354,10 @@ class VisualsNode(Thread, Node):
         win_img, robot_coord = self.crop_map(coord=coord)
 
         # Draws robot in maps image
-        # if coord[0] and coord[1]:
-        # win_img = self.draw_robot(
-        #     l_img=win_img, s_img=self._kiwibot_img, pos=robot_coord
-        # )
+        if coord[0] and coord[1]:
+            win_img = self.draw_robot(
+            l_img=win_img, s_img=self._kiwibot_img, pos=robot_coord
+        )
 
         # Draw descriptions
         str_list = [
@@ -400,6 +408,10 @@ class VisualsNode(Thread, Node):
 
     # TODO: Drawing map descriptors
     def draw_descriptors(self, land_marks: list) -> None:
+        #print("Land MARCS")
+        for i in range(0,len( land_marks )):
+            cv2.circle(self._win_background, (land_marks[i].x,land_marks[i].y), 10, (0,0,255), 3)
+        
         """
             Draws maps keypoints in map image
         Args:
@@ -410,6 +422,7 @@ class VisualsNode(Thread, Node):
 
         # -----------------------------------------
         # Insert you solution here
+
         pass
 
         # -----------------------------------------
@@ -452,11 +465,11 @@ class VisualsNode(Thread, Node):
                     continue
                 # Key1=1048633 & Key9=1048625
                 elif key >= 48 and key <= 57:
-                    printlog(
-                        msg=f"Code is broken here",
-                        msg_type="WARN",
-                    )
-                    continue  # remove this line
+                  #  printlog(
+                  #      msg=f"Code is broken here",
+                  #      msg_type="WARN",
+                  #  )
+                  #  continue  # remove this line
                     printlog(
                         msg=f"Routine {chr(key)} was sent to path planner node",
                         msg_type="INFO",
