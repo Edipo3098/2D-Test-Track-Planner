@@ -449,6 +449,78 @@ class PlannerNode(Node):
     def get_profile_route(
         self, src: tuple, dst: tuple, time: float, pt=0.3, n=30
     ) -> list:
+        
+        way_points = []
+        total_Distance = np.sqrt((src[0] - dst[0]) ** 2 + (src[1] - dst[1]) ** 2)
+        time_accelerated = time*pt
+        time_constant_speed = time*(1-2*pt) 
+        Max_Speed = total_Distance/(time*(1-pt) )
+        acceleration_max = Max_Speed/time_accelerated
+        total_acelerated_distance = (
+            (0.5 / total_Distance) * acceleration_max * (time_accelerated ** 2) * (dst[0] - src[0]) + src[0],
+            (0.5 / total_Distance) * acceleration_max * (time_accelerated ** 2) * (dst[1] - src[1]) + src[1],
+        )
+
+
+        # Accelerated segment
+
+        points =  n*pt
+        accelerated_norm = np.sqrt((total_acelerated_distance[0] - src[0]) ** 2 + (total_acelerated_distance[1] - src[1]) ** 2)
+
+        final_point_1 = (total_acelerated_distance[0] - src[0], total_acelerated_distance[1] - src[1])
+
+        tseg1 = 2 * accelerated_norm / Max_Speed  # Time for Accelerated segment [s]
+        a1 = Max_Speed / tseg1  # Acceleration for Accelerated segment [m2/s]
+        times = np.linspace(0, tseg1, num=int(points))
+
+        idx = 1
+        for t in times:
+            firs_point = (
+                (0.5 / accelerated_norm) * a1 * (t ** 2) * final_point_1[0] + src[0],
+                (0.5 / accelerated_norm) * a1 * (t ** 2) * final_point_1[1] + src[1],
+            )
+            way_points.append({"idx": idx, "pt": firs_point, "t": t, "dt": tseg1 / points})
+            idx += 1
+        
+        # Constat speed
+
+        total_Distance_constant_speed = (
+            (Max_Speed * (time - 2 * time_accelerated) / total_Distance) * (dst[0] - src[0]) + total_acelerated_distance[0],
+            (Max_Speed * (time - 2 * time_accelerated) / total_Distance) * (dst[1] - src[1]) + total_acelerated_distance[1],
+        )
+        points =  n*(1-2*pt)
+        constant_distance = (total_Distance_constant_speed[0] - total_acelerated_distance[0], total_Distance_constant_speed[1] - total_acelerated_distance[1])
+        constant_distance_norm = np.sqrt((total_Distance_constant_speed[0] - total_acelerated_distance[0]) ** 2 + (total_Distance_constant_speed[1] - total_acelerated_distance[1]) ** 2)
+        tseg2 = constant_distance_norm / Max_Speed
+        times = np.linspace(0, tseg2, num=int(points))
+        for t in times:
+            second_point = (
+                (Max_Speed * t / constant_distance_norm) * constant_distance[0] + total_acelerated_distance[0],
+                (Max_Speed * t / constant_distance_norm) * constant_distance[1] + total_acelerated_distance[1],
+            )
+            way_points.append({"idx": idx, "pt": second_point, "t": t, "dt": tseg2 / points})
+            idx += 1
+
+        # Desacelerated speed
+
+        points =  n*pt
+        desacelerated_distance = (dst[0] - total_Distance_constant_speed[0], dst[1] - total_Distance_constant_speed[1])
+        desacelerated_distance_norm = np.sqrt((total_Distance_constant_speed[0] - dst[0]) ** 2 + (total_Distance_constant_speed[1] - dst[1]) ** 2)
+        tseg3 = 2.0 * desacelerated_distance_norm / Max_Speed
+        a3 = -Max_Speed / tseg3
+        times = np.linspace(0, tseg3, num=int(points))
+        for t in times:
+            third_point = (
+                (1 / desacelerated_distance_norm) * (0.5 * a3 * (t ** 2) + (Max_Speed * t)) * desacelerated_distance[0]
+                + total_Distance_constant_speed[0],
+                (1 / desacelerated_distance_norm) * (0.5 * a3 * (t ** 2) + (Max_Speed * t)) * desacelerated_distance[1]
+                + total_Distance_constant_speed[1],
+            )
+            way_points.append({"idx": idx, "pt": third_point, "t": t, "dt": tseg3 / points})
+            idx += 1
+        return way_points
+
+
         """
             Generates waypoints: coordinates and times with a trapezoidal profile
         Args:
@@ -468,7 +540,7 @@ class PlannerNode(Node):
                 }
         """
 
-        print("Distance cycle")
+        """         print("Distance cycle")
         print(src)
         print(dst)
         way_points = []
@@ -508,15 +580,7 @@ class PlannerNode(Node):
         print(way_points[-1])
         print("End of calculation")
         
-        
-
-
-        return way_points
-
-
-
-
-
+        """
     def get_profile_turn(self, dst: float, time: float, pt=0.3, n=30) -> list:
         """
             Generates waypoints: coordinates and times with a trapezoidal turning profile
